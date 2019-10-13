@@ -4,8 +4,12 @@
 require('./config/config');
 
 const express = require('express');
-const app = express();
+const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+
+const app = express();
+
+
 
 /* ================================================================================================================================ */
 // MIDDLEWARES
@@ -17,58 +21,25 @@ app.use(bodyParser.urlencoded({ extended: false }))
 // parse application/json
 app.use(bodyParser.json())
 
-/* ================================================================================================================================ */
-// MÉTODO GET
-/* ================================================================================================================================ */
-
-app.get('/usuario', function(req, res) {
-    res.json('get Usuario');
-});
+/* app.get('/', function(req,res) {
+    res
+}) */
 
 /* ================================================================================================================================ */
-// MÉTODO POST
+// Importación de Rutas
 /* ================================================================================================================================ */
 
-app.post('/usuario', function(req, res) {
+app.use(require('./routes/usuario'));
 
-    let body = req.body;
 
-    if (body.nombre === undefined) {
-
-        res.status(400).json({
-            ok: false,
-            mensaje: 'El nombre es necesario'
-        });
-
-    } else {
-        res.json({
-            persona: body
-        });
-    }
-
-});
 
 /* ================================================================================================================================ */
-// MÉTODO PUT
+// Conexión a la base de datos
 /* ================================================================================================================================ */
 
-app.put('/usuario/:id', function(req, res) {
-
-    /* Obtenemos el id de la petición */
-    let id = req.params.id;
-
-    /* Retorna el id ingresado */
-    res.json({
-        id
-    });
-});
-
-/* ================================================================================================================================ */
-// MÉTODO GET
-/* ================================================================================================================================ */
-
-app.delete('/usuario', function(req, res) {
-    res.json('delete Usuario');
+mongoose.connect(process.env.URLDB, { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true }, (err, res) => {
+    if (err) throw new err;
+    console.log('Base de datos ONLINE');
 });
 
 /* ================================================================================================================================ */
