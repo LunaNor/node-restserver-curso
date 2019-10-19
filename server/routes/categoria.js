@@ -2,36 +2,25 @@
 // REQUIRES
 /* ================================================================================================================================ */
 const express = require('express');
-const bcrypt = require('bcrypt');
-const _ = require('underscore');
+const Categoria = require('../models/categoria');
 
-const Usuario = require('../models/usuario');
-
-const app = express();
+let app = express();
 
 /* ================================================================================================================================ */
 // MIDDLEWARES PERSONALIZADOS
 /* ================================================================================================================================ */
+let { verificaToken, verificaAdmin_Role } = require('../middlewares/autenticacion');
 
-const { verificaToken, verificaAdmin_Role } = require('../middlewares/autenticacion');
+
 /* ================================================================================================================================ */
-// MÉTODO GET
+// OBTENER TODAS LAS CATEGORÍAS
 /* ================================================================================================================================ */
+app.get('/categoria', verificaToken, (req, res) => {
 
-app.get('/usuario', verificaToken, (req, res) => {
-
-    //console.log(`El usuario ${ req.usuario.nombre} hizo la petición de GET USUARIOS`);
-
-    let desde = req.query.desde || 0;
-    desde = Number(desde);
-
-    let limite = req.query.limite || 5;
-    limite = Number(limite);
-
-    Usuario.find({ estado: true }, 'nombre email role estado google img')
-        .skip(desde)
-        .limit(limite)
-        .exec((err, usuarios) => {
+    Categoria.find({})
+        .sort('descripcion')
+        .populate('usuario', 'nombre email')
+        .exec((err, categorias) => {
 
             if (err) {
                 return res.status(400).json({
@@ -40,34 +29,97 @@ app.get('/usuario', verificaToken, (req, res) => {
                 });
             }
 
-            Usuario.countDocuments({ estado: true }, (err, conteo) => {
+            Categoria.countDocuments((err, conteo) => {
                 res.json({
                     ok: true,
-                    usuarios,
+                    categorias,
                     cuantos: conteo
                 });
             })
 
-        })
+        });
 
 });
 
 /* ================================================================================================================================ */
-// MÉTODO POST
+// MOSTRAR UNA CATEGORÍA POR ID
 /* ================================================================================================================================ */
+app.get('/categoria/:id', (req, res) => {
 
-app.post('/usuario', [verificaToken, verificaAdmin_Role], (req, res) => {
+    let id = req.params.id;
+
+    Categoria.findById(id, (err, categoriaDB) => {
+
+        if (err) {
+            return res.status(400).json({
+                ok: false,
+                err
+            });
+        }
+
+        if (!categoriaDB) {
+            return res.status(500).json({
+                ok: false,
+                err: {
+                    message: 'El ID no es correcto'
+                }
+            })
+        }
+
+        res.json({
+            ok: true,
+            categoriaDB
+        });
+
+
+    })
+
+});
+
+/* ================================================================================================================================ */
+// CREAR UNA CATEGORIA
+/* ================================================================================================================================ */
+app.post('/categoria', verificaToken, (req, res) => {
+
+    //extraemos los datos enviados en la request
+    let body = req.body;
+
+    //creamos la nueva categoria con mongooose
+    let nuevaCategoria = new Categoria({
+        descripcion: body.descripcion,
+        usuario: req.usuario._id // obtenemos el id, ya que en el middleware creamos esta propiedad "usuario" que viene del payload del token
+    });
+
+    //guardamos la categoria
+    nuevaCategoria.save((err, categoriaDB) => {
+
+        if (err) {
+            return res.status(400).json({
+                ok: false,
+                err
+            });
+        }
+
+        res.json({
+            ok: true,
+            categoria: categoriaDB
+        })
+
+    });
+
+
+});
+
+/* ================================================================================================================================ */
+// ACTUALIZAR UNA CATEGORIA
+/* ================================================================================================================================ */
+app.put('/categoria/:id', verificaToken, (req, res) => {
 
     let body = req.body;
 
-    let usuario = new Usuario({
-        nombre: body.nombre,
-        email: body.email,
-        password: bcrypt.hashSync(body.password, 10),
-        role: body.role
-    });
+    let id = req.params.id;
 
-    usuario.save((err, usuarioDB) => {
+    Categoria.findByIdAndUpdate(id, body, { new: true, runValidators: true }, (err, categoriaActualizada) => {
 
         if (err) {
             return res.status(400).json({
@@ -76,29 +128,27 @@ app.post('/usuario', [verificaToken, verificaAdmin_Role], (req, res) => {
             });
         }
 
-        //usuario.password = null;
-
         res.json({
             ok: true,
-            usuario: usuarioDB
+            categoriaActualizada
         })
 
+
     });
+
+
 
 });
 
 /* ================================================================================================================================ */
-// MÉTODO PUT
+// ELIMINAR UNA CATEGORIA
 /* ================================================================================================================================ */
+app.delete('/categoria/:id', [verificaToken, verificaAdmin_Role], (req, res) => {
 
-app.put('/usuario/:id', [verificaToken, verificaAdmin_Role], (req, res) => {
-
-    /* Obtenemos el id de la petición */
     let id = req.params.id;
-    let body = _.pick(req.body, ['nombre', 'email', 'img', 'role', 'estado']);
 
-    /* le podemos pasar el body directamente, ya que contiene el nuevo objecto usuario */
-    Usuario.findByIdAndUpdate(id, body, { new: true, runValidators: true }, (err, usuarioDB) => {
+
+    Categoria.findOneAndRemove(id, { runValidators: true }, (err, categoriaEliminada) => {
 
         if (err) {
             return res.status(400).json({
@@ -107,59 +157,28 @@ app.put('/usuario/:id', [verificaToken, verificaAdmin_Role], (req, res) => {
             });
         }
 
-        res.json({
-            ok: true,
-            usuario: usuarioDB
-        });
-    });
-
-    /* Retorna el id ingresado */
-});
-
-/* ================================================================================================================================ */
-// MÉTODO DELETE
-/* ================================================================================================================================ */
-
-app.delete('/usuario/:id', [verificaToken, verificaAdmin_Role], (req, res) => {
-
-    let id = req.params.id;
-
-    /* Usuario.findByIdAndRemove(id, (err, usuarioBorrado) => { */
-
-    let cambiaEstado = {
-        estado: false
-    }
-
-    Usuario.findByIdAndUpdate(id, cambiaEstado, { new: true }, (err, usuarioBorrado) => {
-
-        if (err) {
-            return res.status(400).json({
-                ok: false,
-                err
-            });
-        }
-
-        if (!usuarioBorrado) {
+        if (!categoriaEliminada) {
             return res.status(400).json({
                 ok: false,
                 err: {
-                    message: 'Usuario no encontrado'
+                    message: 'El id no existe'
                 }
             });
         }
 
         res.json({
             ok: true,
-            usuario: usuarioBorrado
-        })
+            categoriaEliminada,
+            message: 'Categoria borrada'
+        });
 
-    })
+
+    });
+
 
 
 
 });
 
 
-
-/* ---------------------------------------------------------------------------------------------------------------------------------- */
 module.exports = app;
