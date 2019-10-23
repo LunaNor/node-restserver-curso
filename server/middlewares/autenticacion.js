@@ -33,6 +33,9 @@ let verificaToken = (req, res, next) => {
 
 };
 
+/* ================================================================================================================================ */
+// Verificar Rol de Usuario
+/* ================================================================================================================================ */
 
 verificaAdmin_Role = (req, res, next) => {
 
@@ -53,7 +56,38 @@ verificaAdmin_Role = (req, res, next) => {
 
 };
 
+/* ================================================================================================================================ */
+// Verificar Token para Imagen
+/* ================================================================================================================================ */
+
+let verificaTokenImg = (req, res, next) => {
+
+    let token = req.query.token;
+
+    jwt.verify(token, process.env.SEED, (err, decoded) => {
+
+        if (err) {
+            return res.status(401).json({
+                ok: false,
+                err: {
+                    message: 'Token no válido'
+                }
+            })
+        }
+
+        /* le asigno a la request el usuario decodificado del token
+        sirve para saber que usuario hizo la peticion, le agrega esto a la request */
+        req.usuario = decoded.usuario;
+
+        next();
+
+    });
+
+
+}
+
 module.exports = {
     verificaToken,
-    verificaAdmin_Role
+    verificaAdmin_Role,
+    verificaTokenImg
 }
